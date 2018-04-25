@@ -3,6 +3,10 @@ import sys
 import operator
 import numpy as np
 import time
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from keras.models import Sequential
+from keras.layers import Dense
 
 start_time = time.time()
 file = 'BCR_strings_length_8_occ50000_patient_cluster_percents'
@@ -14,20 +18,22 @@ sys.stderr.write(str(time.time()-start_time)+'seconds to load data \n')
 output_matrix = []
 cancer_map = {}
 cancer_map['SKCM'] = 0
-cancer_map['LUSC'] = 0.0833333
-cancer_map['READ'] = 0.1666666
-cancer_map['STAD'] = 0.25
-cancer_map['BRCA'] = 0.3333333
-cancer_map['BLCA'] = 0.4166666
-cancer_map['KIRC'] = 0.5
-cancer_map['HNSC'] = 0.5833333
-cancer_map['PRAD'] = 0.6666666
-cancer_map['LUAD'] = 0.75
-cancer_map['COAD'] = 0.8333333
-cancer_map['THCA'] = 0.9166666
-cancer_map['OV'] = 1
+cancer_map['LUSC'] = 1
+cancer_map['READ'] = 2
+cancer_map['STAD'] = 3
+cancer_map['BRCA'] = 4
+cancer_map['BLCA'] = 5
+cancer_map['KIRC'] = 6
+cancer_map['HNSC'] = 7
+cancer_map['PRAD'] = 8
+cancer_map['LUAD'] = 9
+cancer_map['COAD'] = 10
+cancer_map['THCA'] = 11
+cancer_map['OV'] = 12
 for patient_BCR_record in original_data:
-    output_matrix.append(cancer_map[patient_BCR_record['cancer']])
+    output_array = np.zeros(13,)
+    output_array[cancer_map[patient_BCR_record['cancer']]] =1
+    output_matrix.append(output_array)
 
 
 output_matrix = output_matrix[0:100]
@@ -43,74 +49,28 @@ for obj in data["data"]:
 
 input_matrix = input_matrix[0:100]
 
-start_time2 = time.time()
-# sigmoid function
-def nonlin(x,deriv=False):
-    if(deriv==True):
-        return x*(1-x)
-    return 1/(1+np.exp(-x))
-    
-# input dataset
-X = np.array(input_matrix)
-    
-# output dataset            
-y = np.array([output_matrix]).T
-
-# seed random numbers to make calculation
-# deterministic (just a good practice)
-np.random.seed(1)
-
-# initialize weights randomly with mean 0
-syn0 = 2*np.random.random((3,1)) - 1
-
-for iter in range(15000):
-
-    # forward propagation
-    l0 = X
-    l1 = nonlin(np.dot(l0,syn0))
-
-    # how much did we miss?
-    l1_error = y - l1
-
-    # multiply how much we missed by the 
-    # slope of the sigmoid at the values in l1
-    l1_delta = l1_error * nonlin(l1,True)
-
-    # update weights
-    syn0 += np.dot(l0.T,l1_delta)
 
 
-labels = [0, 
-          0.0833333, 
-          0.1666666, 
-          0.25,
-          0.3333333, 
-          0.4166666,
-          0.5, 
-          0.5833333, 
-          0.6666666, 
-          0.75, 
-          0.8333333, 
-          0.9166666, 
-          1]
+
+X_train, X_test, y_train, y_test = train_test_split(input_matrix, output_matrix, test_size=0.5, random_state=23)
 
 
-predictions = []
-for targetVal in l1:
-    diff = 100
-    cand = 0
-    for label in labels:
-        if abs(label - targetVal) < diff:
-            diff = abs(label - targetVal)
-            cand = label    
-    predictions.append(cand)
+X_train = np.array(X_train)
+y_train = np.array(y_train)
 
-correctly_picked = 0
-for x in range(len(predictions)):
-    if predictions[x] == output_matrix[x]:
-        correctly_picked = correctly_picked + 1
+model = Sequential()
+model.add(Dense(13, input_dim=3, activation="relu"))
+print("Dense add 1")
+model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+print("Compile finished")
 
+history = model.fit(X_train, y_train, epochs=300, batch_size=32)
+print("model fit")
+# summarize history for loss
 
-print ("Output After Training:")
-print (predictions)
-print(correctly_picked)
+# plt.savefig('loss1.png')
+
+X_test = np.array(X_test)
+y_test = np.array(y_test)
+scores = model.evaluate(X_test, y_test)
+print("\nAccuracy: %.2f%%" % (scores[1]*100))
